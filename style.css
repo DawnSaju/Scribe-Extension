@@ -1,0 +1,147 @@
+.scribe-shadow-subtitles {
+    position: absolute;
+    bottom: 10%;
+    width: 100%;
+    text-align: center;
+    z-index: 100000;
+    pointer-events: none;
+}
+
+.scribe-line {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+    pointer-events: auto;
+}
+
+.scribe-word {
+    background: rgba(255, 255, 255, 0.15);
+    padding: 8px 18px;
+    border-radius: 18px;
+    font-size: 30px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s;
+    user-select: none;
+    pointer-events: auto;
+}
+
+.scribe-word:hover {
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.scribe-toast {
+    position: absolute;
+    bottom: 140px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1E78FF;
+    color: white;
+    padding: 12px 26px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: 700;
+    z-index: 100001;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.scribe-counter {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px);
+    color: white;
+    padding: 24px 38px;
+    border-radius: 22px;
+    font-size: 48px;
+    font-weight: 900;
+    z-index: 100001;
+    pointer-events: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+}
+
+.scribe-gear {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(20, 20, 20, 0.8);
+    color: white;
+    padding: 10px;
+    border-radius: 50%;
+    font-size: 20px;
+    z-index: 100001;
+    cursor: pointer;
+    pointer-events: auto;
+}
+
+.scribe-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(24px);
+    border-radius: 26px;
+    color: white;
+    padding: 32px 42px;
+    max-width: 460px;
+    width: 95%;
+    z-index: 100003 !important;
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    text-align: left;
+    user-select: text;
+}
+
+.scribe-modal h2 {
+    font-size: 34px;
+    font-weight: 900;
+    margin-bottom: 18px;
+    color: #1E78FF;
+}
+
+.scribe-modal p {
+    font-size: 20px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+.scribe-modal button {
+    background: #1E78FF;
+    border: none;
+    padding: 14px 30px;
+    border-radius: 14px;
+    color: white;
+    font-size: 20px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 28px;
+    transition: background 0.3s ease;
+    display: block;
+    margin-left: auto;
+}
+
+.scribe-modal button:hover {
+    background: #1E78FF;
+}
+
+.scribe-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 100002 !important;
+}
+
+.player-timedtext,
+.player-timedtext-container,
+.player-timedtext-text-container {
+    display: none !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+}

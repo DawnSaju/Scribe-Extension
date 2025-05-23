@@ -1,0 +1,47 @@
+{
+    "manifest_version": 3,
+    "name": "Scribe",
+    "version": "1.0",
+    "description": "Scribe's Extension Beta v1",
+    "background": {
+      "service_worker": "background.js"
+    },
+    "externally_connectable": {
+        "matches": [
+            "https://scribe-eosin-seven.vercel.app/*",
+            "https://*.ngrok-free.app/*",
+            "http://localhost:3000/*"
+        ]
+    },
+    "permissions": [
+        "identity",
+        "cookies",
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
+      "https://scribe-eosin-seven.vercel.app/*",
+      "https://*.ngrok-free.app/*",
+      "http://localhost:3000/*",
+      "https://*.netflix.com/watch/*"
+    ],
+    "content_scripts": [
+      {
+          "matches": [
+          "https://scribe-eosin-seven.vercel.app/*",
+          "https://*.ngrok-free.app/*",
+          "http://localhost:3000/*"
+          ],
+          "js": ["relay.js"],
+          "run_at": "document_idle"
+      },
+      {
+          "matches": [
+          "https://*.netflix.com/watch/*"
+          ],
+          "js": ["content.js"],
+          "css": ["style.css"]
+      }
+    ]
+  }
+  
