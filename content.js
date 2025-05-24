@@ -95,7 +95,52 @@
 
     let wordTranslations;
     let wordDefinition;
+    let showData;
+
+    function getShowData() {
+        const container = document.querySelector('.ltr-1m81c36');
+        const h4 = document.querySelector('h4');
+        const showName = h4 ? h4.textContent.trim() : '';
     
+        if (!container || container.offsetParent === null) {
+            return { show_name: showName, season: null, episode: null, episode_title: '' };
+        }
+    
+        const spans = Array.from(container.querySelectorAll('span'));
+    
+        let episodeTitle = '';
+        let season = null;
+        let episode = null;
+    
+        spans.forEach((span) => {
+            const text = span.textContent.trim();
+            let match = text.match(/S(\d+):E(\d+)/i);
+            if (match) {
+                season = parseInt(match[1]);
+                episode = parseInt(match[2]);
+                return;
+            }
+            match = text.match(/E(\d+)/i);
+            if (match && !episode) {
+                episode = parseInt(match[1]);
+                return;
+            }
+            if (!/^[SE]?\d+/i.test(text) && text.length > episodeTitle.length) {
+                episodeTitle = text;
+            }
+        });
+    
+        showData = {
+            show_name: showName,
+            season,
+            episode,
+            episode_title: episodeTitle
+        };
+    
+        console.log("Done:", showData);
+        return showData;
+    }
+
     const saveWord = async (word) => {
         const lowerWord = word.toLowerCase();
       
@@ -115,6 +160,7 @@
           showToast(`Saved: "${word}"`);
           wordDefinition = definition;
           showModal(word); 
+          getShowData();
           translate(word, "ar").then(result => {
             if (result) {
               console.log("Translated Text:", result.translatedText);
@@ -134,9 +180,9 @@
               phonetics: phonetics,
               example: example,
               platform: 'Netflix',
-              show_name: 'Stranger Things',
-              season: 2,
-              episode: 2,
+              show_name: showData.show_name,
+              season: 1,
+              episode: showData.episode,
             }
           });
           console.log('Saved:', word);
@@ -144,7 +190,6 @@
           showToast(`Already saved: "${word}"`);
         }
     };
-
     
     const showModal = (word) => {
         removeModal();

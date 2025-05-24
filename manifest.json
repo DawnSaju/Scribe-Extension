@@ -10,7 +10,8 @@
         "matches": [
             "https://scribe-eosin-seven.vercel.app/*",
             "https://*.ngrok-free.app/*",
-            "http://localhost:3000/*"
+            "http://localhost:3000/*",
+            "http://localhost:3001/*"
         ]
     },
     "permissions": [
@@ -23,6 +24,7 @@
       "https://scribe-eosin-seven.vercel.app/*",
       "https://*.ngrok-free.app/*",
       "http://localhost:3000/*",
+      "http://localhost:3001/*",
       "https://*.netflix.com/watch/*"
     ],
     "content_scripts": [
@@ -30,7 +32,8 @@
           "matches": [
           "https://scribe-eosin-seven.vercel.app/*",
           "https://*.ngrok-free.app/*",
-          "http://localhost:3000/*"
+          "http://localhost:3000/*",
+          "http://localhost:3001/*"
           ],
           "js": ["relay.js"],
           "run_at": "document_idle"

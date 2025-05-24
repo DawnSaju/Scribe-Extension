@@ -15,9 +15,10 @@ let connectionState = {
       console.log('Received EXTERNAL message:', request, 'from', sender.url);
   
       const isNgrok = sender.url?.includes('.ngrok-free.app');
-      const isLocalhost = sender.url?.startsWith('https://scribe-eosin-seven.vercel.app');
-  
-      if (!isNgrok && !isLocalhost) {
+      const isScribe = sender.url?.startsWith('https://scribe-eosin-seven.vercel.app');
+      const isLocalhost = sender.url?.startsWith('http://localhost:3001');
+      
+      if (!isNgrok && !isScribe && !isLocalhost) {
         console.warn('Blocked message from unknown origin:', sender.url);
         return;
       }
@@ -103,7 +104,8 @@ let connectionState = {
             const tabs = await chrome.tabs.query({
                 url: [
                   '*://*.ngrok-free.app/*',
-                  'https://scribe-eosin-seven.vercel.app/dashboard'
+                  'https://scribe-eosin-seven.vercel.app/dashboard',
+                  'http://localhost:3001/dashboard',
                 ]
             });
 
