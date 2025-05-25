@@ -97,62 +97,53 @@ let connectionState = {
 
     switch (request.type) {
         case 'SEND_DATA':
-        console.log('Got SEND_DATA:', request.data);
-
-        (async () => {
+          console.log('Got SEND_DATA:', request.data);
+              
+          (async () => {
             try {
-            const tabs = await chrome.tabs.query({
+              const tabs = await chrome.tabs.query({
                 url: [
-                  '*://*.ngrok-free.app/*',
+                  'https://*.ngrok-free.app/dashboard*',
                   'https://scribe-eosin-seven.vercel.app/dashboard',
-                  'http://localhost:3001/dashboard',
+                  'http://localhost:3001/dashboard'
                 ]
-            });
+              });
 
-            console.log('Tabs found:', tabs.map(tab => tab.url));
+              console.log('Matching tabs found:', tabs.map(tab => tab.url));
 
-            if (tabs.length === 0) {
+              const scribeTab = tabs.find(tab => tab.url && tab.url.startsWith("https://scribe-eosin-seven.vercel.app"));
+              const targetTab = scribeTab || tabs[0];
+
+              if (!targetTab || !targetTab.id) {
                 console.warn('No tabs found to send data.');
                 sendResponse({ success: true, warning: 'No matching tabs' });
                 return;
-            }
+              }
 
-            const sendPromises = tabs.map(async (tab) => {
-                if (!tab.id) return;
+              console.log('Sending WORD_DATA to tab ID:', targetTab.id);
 
-                const tabKey = `${tab.id}-${request.data}`;
-                if (history.get(tabKey) === request.data) {
-                return;
-                }
-
-                history.set(tabKey, request.data);
-
-                try {
-                const response = await chrome.tabs.sendMessage(tab.id, {
-                    type: 'WORD_DATA',
-                    word: request.data,
-                    timestamp: Date.now() 
+              try {
+                const response = await chrome.tabs.sendMessage(targetTab.id, {
+                  type: 'WORD_DATA',
+                  word: request.data,
+                  timestamp: Date.now()
                 });
-                return response;
-                } catch (error) {
+                console.log('Sent WORD_DATA successfully:', response);
+                sendResponse({ success: true });
+              } catch (error) {
                 console.error('Error sending data:', error.message);
-                history.delete(tabKey);
-                throw error;
-                }
-            });
-
-            await Promise.all(sendPromises);
-            sendResponse({ success: true });
+                sendResponse({ success: false, error: error.message });
+              }
             } catch (error) {
-            console.error('Error in SEND_DATA:', error);
-            sendResponse({ success: false, error: error.message });
+              console.error('Error in the hook SEND_DATA:', error);
+              sendResponse({ success: false, error: error.message });
             }
-        })();
+          })();
 
-        return true;
+          return true;
 
         default:
-        console.warn('Unknown INTERNAL message type:', request.type);
+        console.warn('Unknown INTERNAL request type:', request.type);
         sendResponse({ success: false, error: 'Unknown type' });
         return false;
     }
