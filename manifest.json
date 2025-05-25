@@ -1,11 +1,12 @@
 {
     "manifest_version": 3,
     "name": "Scribe",
-    "version": "1.0",
+    "version": "1.0.1",
     "description": "Scribe's Extension Beta v1",
     "background": {
       "service_worker": "background.js"
     },
+    "update_url": "https://scribe-eosin-seven.vercel.app/updates.xml",
     "externally_connectable": {
         "matches": [
             "https://scribe-eosin-seven.vercel.app/*",

@@ -7,14 +7,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const isDuplicate = message.word === prevProcessedWord && now - prevProcessedTime < 1000;
     
     if (!isDuplicate) {
-      console.log('Triggered hook WORD_DATA:', message.word);
-      
-      window.postMessage({
-        source: 'chrome-extension',
-        type: 'WORD_DATA',
-        word: message.word,
-        timestamp: message.timestamp || Date.now()
-      }, window.origin);
+      chrome.storage.local.get(['connectionState'], (result) => {
+        if (result.connectionState && result.connectionState.isConnected) {
+          window.postMessage({
+            source: 'chrome-extension',
+            type: 'WORD_DATA',
+            word: message.word,
+            timestamp: message.timestamp || Date.now(),
+            extensionId: chrome.runtime.id
+          }, window.origin);
+        }
+      });
 
       prevProcessedWord = message.word;
       prevProcessedTime = now;
