@@ -4,7 +4,7 @@
 
 A simple Chrome extension that helps you capture new English words you come across while watching movies and series on Netflix and other platforms (coming soon).
 Revisit them on Scribe's web page later. To get started follow the steps to connect with the 
-<br>[Web App ](https://scribe-eosin-seven.vercel.app/)
+<br>[Web App ](https://www.scribe-app.xyz/)
 
 ## Instructions
 

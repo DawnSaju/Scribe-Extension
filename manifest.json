@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Scribe",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "Scribe's Extension Beta v1",
     "background": {
       "service_worker": "background.js"
@@ -9,7 +9,7 @@
     "update_url": "https://scribe-eosin-seven.vercel.app/updates.xml",
     "externally_connectable": {
         "matches": [
-            "https://scribe-eosin-seven.vercel.app/*",
+            "https://www.scribe-app.xyz/*",
             "https://*.ngrok-free.app/*",
             "http://localhost:3000/*",
             "http://localhost:3001/*"
@@ -22,7 +22,7 @@
         "tabs"
     ],
     "host_permissions": [
-      "https://scribe-eosin-seven.vercel.app/*",
+      "https://www.scribe-app.xyz/*",
       "https://*.ngrok-free.app/*",
       "http://localhost:3000/*",
       "http://localhost:3001/*",
@@ -31,7 +31,7 @@
     "content_scripts": [
       {
           "matches": [
-          "https://scribe-eosin-seven.vercel.app/*",
+          "https://www.scribe-app.xyz/*",
           "https://*.ngrok-free.app/*",
           "http://localhost:3000/*",
           "http://localhost:3001/*"

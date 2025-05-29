@@ -15,7 +15,7 @@ let connectionState = {
       console.log('Received EXTERNAL message:', request, 'from', sender.url);
   
       const isNgrok = sender.url?.includes('.ngrok-free.app');
-      const isScribe = sender.url?.startsWith('https://scribe-eosin-seven.vercel.app');
+      const isScribe = sender.url?.startsWith('https://www.scribe-app.xyz/');
       const isLocalhost = sender.url?.startsWith('http://localhost:3001');
       
       if (!isNgrok && !isScribe && !isLocalhost) {
@@ -104,14 +104,14 @@ let connectionState = {
               const tabs = await chrome.tabs.query({
                 url: [
                   'https://*.ngrok-free.app/dashboard*',
-                  'https://scribe-eosin-seven.vercel.app/dashboard',
+                  'https://www.scribe-app.xyz/dashboard',
                   'http://localhost:3001/dashboard'
                 ]
               });
 
               console.log('Matching tabs found:', tabs.map(tab => tab.url));
 
-              const scribeTab = tabs.find(tab => tab.url && tab.url.startsWith("https://scribe-eosin-seven.vercel.app"));
+              const scribeTab = tabs.find(tab => tab.url && tab.url.startsWith("https://www.scribe-app.xyz"));
               const targetTab = scribeTab || tabs[0];
 
               if (!targetTab || !targetTab.id) {
