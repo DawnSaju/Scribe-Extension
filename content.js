@@ -31,6 +31,10 @@
         return; 
     }
 
+    function isWatchPage() {
+        return /^https?:\/\/(www\.)?netflix\.com\/watch\/\d+/.test(window.location.href);
+    }
+
     const savedWords = new Set();
     let wordCount = 0;
     let videoElement = null;
@@ -50,6 +54,15 @@
             });
         }
     };
+
+    function hideOverlay() {
+        removeModal();
+        const elements = ['scribe-sub-wrapper', 'scribe-toast', 'scribe-counter'];
+        elements.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        });
+    }
 
     const showToast = (text) => {
         const toast = document.getElementById('scribe-toast');
@@ -316,6 +329,10 @@
     };
 
     const main = () => {
+        if (!isWatchPage()) {
+            return;
+        }
+
         const findVideoElement = () => {
             videoElement = document.querySelector('#\\38 1654823 > video');
             if (!videoElement) {
@@ -324,7 +341,13 @@
             return videoElement;
         };
 
-        setInterval(() => {
+        const interval = setInterval(() => {
+            if (!isWatchPage()) {
+                clearInterval(interval);
+                hideOverlay();
+                return;
+            }
+
             const container = document.fullscreenElement || 
                            document.querySelector('.watch-video--player-view, .player-container, .video-container, .nf-player-container') ||
                            document.body;
@@ -335,5 +358,20 @@
         }, 400);
     };
 
-    main();
+    let prevRoute = window.location.href;
+    const checkUrlChange = () => {
+        if (window.location.href !== prevRoute) {
+            prevRoute = window.location.href;
+            if (isWatchPage()) {
+                main();
+            } else {
+                hideOverlay();
+            }
+        }
+    };
+
+    if (isWatchPage()){
+        main();
+    }
+    setInterval(checkUrlChange, 500);
 })();
