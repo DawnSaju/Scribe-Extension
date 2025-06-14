@@ -156,55 +156,65 @@
 
     const saveWord = async (word) => {
         const lowerWord = word.toLowerCase();
-      
-        console.log('Word sent to background.js:', word);
-      
+            
         if (!savedWords.has(lowerWord)) {
-          savedWords.add(lowerWord);
-          wordCount++;
-          updateCounter();
-          const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-          const data = await response.json();
-          const meaning = data[0]?.meanings?.[0];
-          const partOfSpeech = meaning?.partOfSpeech || 'unknown';
-          const definition = meaning?.definitions?.[0]?.definition || 'No definition found.';
-          const example = meaning?.definitions?.[0]?.example || 'No example found.';
-          const phonetics = meaning?.phonetics?.[0]?.text || 'No phonetics found.';
-          showToast(`Saved: "${word}"`);
-          wordDefinition = definition;
-          showModal(word); 
-          getShowData();
-          translate(word, "ar").then(result => {
-            if (result) {
-              console.log("Translated Text:", result.translatedText);
-              wordTranslations = result.translatedText;
-              showModal(word); 
-            }
-          });          
+          const verify = await showModal(word, "default");
+          if (!verify?.profanity) {
+            console.log('Word sent to background.js:', word);
+            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+            const data = await response.json();
+            const meaning = data[0]?.meanings?.[0];
+            const partOfSpeech = meaning?.partOfSpeech || 'unknown';
+            const definition = meaning?.definitions?.[0]?.definition || 'No definition found.';
+            const example = meaning?.definitions?.[0]?.example || 'No example found.';
+            const phonetics = meaning?.phonetics?.[0]?.text || 'No phonetics found.';
+            showToast(`Saved: "${word}"`);
+            wordDefinition = definition;
+            savedWords.add(lowerWord);
+            wordCount++;
+            updateCounter();
+            getShowData();
+            translate(word, "ar").then(result => {
+                if (result) {
+                console.log("Translated Text:", result.translatedText);
+                wordTranslations = result.translatedText;
+                showModal(word); 
+                }
+            });          
 
-          chrome.runtime.sendMessage({
-            type: 'SEND_DATA',
-            data: {
-              id: Math.floor(Math.random() * 1000000).toString(),
-              word: word,
-              part_of_speech: partOfSpeech,
-              is_new: true,
-              definition: definition,
-              phonetics: phonetics,
-              example: example,
-              platform: 'Netflix',
-              show_name: showData.show_name,
-              season: 1,
-              episode: showData.episode,
-            }
-          });
-          console.log('Saved:', word);
+            chrome.runtime.sendMessage({
+                type: 'SEND_DATA',
+                data: {
+                    id: Math.floor(Math.random() * 1000000).toString(),
+                    word: word,
+                    part_of_speech: partOfSpeech,
+                    is_new: true,
+                    definition: definition,
+                    phonetics: phonetics,
+                    example: example,
+                    platform: 'Netflix',
+                    show_name: showData.show_name,
+                    season: 1,
+                    episode: showData.episode,
+                }
+                }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error("Error sending message to background:", chrome.runtime.lastError.message);
+                } else {
+                    console.log("Background response:", response);
+                }
+            });
+
+            console.log('Saved:', word);
+          } else {
+            showModal(word, "profanity");
+          }
         } else {
           showToast(`Already saved: "${word}"`);
         }
     };
     
-    const showModal = (word) => {
+    const showModal = async (word) => {
         removeModal();
         
         wasPlayingBeforeModal = videoElement && !videoElement.paused;
@@ -212,24 +222,41 @@
             videoElement.pause();
         }
 
+        const validator = await fetch(`https://www.purgomalum.com/service/json?text=${word}`);
+        const json = await validator.json();
+
         const container = document.fullscreenElement || 
                         document.querySelector('.nf-player-container') || 
                         document.body;
-
+                        
         const overlay = document.createElement('div');
+        let modal;
         overlay.id = 'scribe-overlay';
         overlay.className = 'scribe-overlay';
         overlay.onclick = removeModal;
-
-        const modal = document.createElement('div');
-        modal.id = 'scribe-modal';
-        modal.className = 'scribe-modal';
-        modal.innerHTML = `
-            <h2>${word}</h2>
-            <p><strong>Definition:</strong> ${wordDefinition}</p>
-            <p><strong>Translation:</strong> ${wordTranslations}</p>
-            <button id="scribe-close-btn">Close</button>
-        `;
+        let isProfane = json.result.includes("*");
+        
+        if (!isProfane) {
+            modal = document.createElement('div');
+            modal.id = 'scribe-modal';
+            modal.className = 'scribe-modal';
+            modal.innerHTML = `
+                <h2>${word}</h2>
+                <p><strong>Definition:</strong> ${wordDefinition}</p>
+                <p><strong>Translation:</strong> ${wordTranslations}</p>
+                <button id="scribe-close-btn">Close</button>
+            `;
+        } else {
+            modal = document.createElement('div');
+            modal.id = 'scribe-modal';
+            modal.className = 'scribe-modal';
+            modal.innerHTML = `
+                <h2>Profanity Found</h2>
+                <p><strong>Sorry, this word cannot be added</p>
+                <p><strong>Try a different one</p>
+                <button id="scribe-close-btn">Close</button>
+            `;
+        }
 
         container.appendChild(overlay);
         container.appendChild(modal);
@@ -238,6 +265,8 @@
             e.stopPropagation();
             removeModal();
         });
+
+        return { profanity: isProfane };
     };
       
 
