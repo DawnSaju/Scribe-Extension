@@ -66,6 +66,67 @@
     user-select: none;
 }
 
+.scribe-btn-container {
+    display: flex;
+    flex-direction: row;
+    gap: 4px;
+    align-items: center;
+    margin-top: 20px;
+}
+
+#scribe-continue-btn {
+    background: #1E78FF;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 14px;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    flex-grow: 1;
+    max-width: 150px;
+}
+
+#scribe-end-btn {
+    background: red;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 14px;
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.3s ease;
+    flex-grow: 1;
+    max-width: 150px;
+}
+
+#scribe-continue-btn:hover {
+    background: #155bb5;
+}
+
+#scribe-end-btn:hover {
+    background: #cc0000;
+}
+
+.scribe-timer {
+    position: fixed;
+    bottom: 150px;
+    right: 50px;
+    background: rgba(255, 255, 255, 0.15);
+    backdrop-filter: blur(12px);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 18px;
+    font-size: 28px;
+    font-weight: 700;
+    z-index: 100001;
+    pointer-events: none;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    user-select: none;
+}
+
 .scribe-gear {
     position: absolute;
     bottom: 20px;
