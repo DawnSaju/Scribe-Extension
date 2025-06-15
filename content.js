@@ -39,6 +39,49 @@
     let wordCount = 0;
     let videoElement = null;
     let wasPlayingBefore = false;
+    let watchStartTime = null;
+    let timetracked = 0;
+    let timeinterval = null;
+    let pauseTimeoutId = null;
+
+    function formatTime(seconds) {
+        const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+        const s = String(seconds % 60).padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function startTracking(){
+        if (pauseTimeoutId) {
+            clearTimeout(pauseTimeoutId);
+            pauseTimeoutId = null;
+        }
+        if (!watchStartTime) {
+            watchStartTime = Date.now();
+            timeinterval = setInterval(() => {
+                const now = Date.now();
+                timetracked = timetracked + now - watchStartTime
+                watchStartTime = now;
+            }, 1000);
+        }
+    }
+
+    function stopTracking(){
+        if (watchStartTime) {
+            timetracked = timetracked + Date.now() - watchStartTime;
+            watchStartTime = null;
+        }
+
+        if (timeinterval) {
+            clearInterval(timeinterval);
+            timeinterval = null;
+        }
+
+        const currentShowData = getShowData();
+
+        if (!pauseTimeoutId) {
+            pauseTimeoutId = setTimeout(() => timeoutTime(currentShowData), 20000);
+        }
+    }
 
     const removeModal = () => {
         const modal = document.getElementById('scribe-modal');
@@ -213,17 +256,71 @@
           showToast(`Already saved: "${word}"`);
         }
     };
+
+    const timeoutTime = (data) => {
+        if (!videoElement || !videoElement.paused) {
+            if (pauseTimeoutId) {
+                clearTimeout(pauseTimeoutId);
+            }
+            return;
+        }
+
+        const info = data || showData;
+
+        const showName = info.show_name || 'Current Show';
+        const season = info.season ? `S${info.season}` : '';
+        const episode = info.episode ? `E${info.episode}` : '';
+        const episodeInfo = (season || episode) ? `: ${season}${episode}` : '';
+
+        showModal(`Session Paused ${showName}${episodeInfo}`, "session-paused");
+        if (pauseTimeoutId) {
+            clearTimeout(pauseTimeoutId);
+            pauseTimeoutId = null;
+        }
+    }
     
-    const showModal = async (word) => {
+    const showModal = async (messageText, type = "default") => {
         removeModal();
         
-        wasPlayingBeforeModal = videoElement && !videoElement.paused;
+        let wasPlayingBeforeModal = videoElement && !videoElement.paused;
         if (wasPlayingBeforeModal) {
             videoElement.pause();
         }
 
-        const validator = await fetch(`https://www.purgomalum.com/service/json?text=${word}`);
-        const json = await validator.json();
+        let modalContentHTML = '';
+        let profanityCheckResult = { profanity: false };
+
+        if (type === "session-paused") {
+            modalContentHTML = `
+                <h2>Are you still there?</h2>
+                <p><strong>${messageText}</strong></p>
+                <div class="scribe-btn-container">
+                    <button id="scribe-continue-btn">Continue</button>
+                    <button id="scribe-end-btn">End</button>
+                </div>
+            `;
+        } else {
+            const word = messageText;
+            const validator = await fetch(`https://www.purgomalum.com/service/json?text=${word}`);
+            profanityCheckResult = await validator.json();
+            let isProfane = profanityCheckResult.result.includes("*");
+
+            if (!isProfane) {
+                modalContentHTML = `
+                    <h2>${word}</h2>
+                    <p><strong>Definition:</strong> ${wordDefinition}</p>
+                    <p><strong>Translation:</strong> ${wordTranslations}</p>
+                    <button id="scribe-close-btn">Close</button>
+                `;
+            } else {
+                modalContentHTML = `
+                    <h2>Profanity Found</h2>
+                    <p><strong>Sorry, this word cannot be added</p>
+                    <p><strong>Try a different one</p>
+                    <button id="scribe-close-btn">Close</button>
+                `;
+            }
+        }
 
         const container = document.fullscreenElement || 
                         document.querySelector('.nf-player-container') || 
@@ -234,45 +331,52 @@
         overlay.id = 'scribe-overlay';
         overlay.className = 'scribe-overlay';
         overlay.onclick = removeModal;
-        let isProfane = json.result.includes("*");
         
-        if (!isProfane) {
-            modal = document.createElement('div');
-            modal.id = 'scribe-modal';
-            modal.className = 'scribe-modal';
-            modal.innerHTML = `
-                <h2>${word}</h2>
-                <p><strong>Definition:</strong> ${wordDefinition}</p>
-                <p><strong>Translation:</strong> ${wordTranslations}</p>
-                <button id="scribe-close-btn">Close</button>
-            `;
-        } else {
-            modal = document.createElement('div');
-            modal.id = 'scribe-modal';
-            modal.className = 'scribe-modal';
-            modal.innerHTML = `
-                <h2>Profanity Found</h2>
-                <p><strong>Sorry, this word cannot be added</p>
-                <p><strong>Try a different one</p>
-                <button id="scribe-close-btn">Close</button>
-            `;
-        }
+        modal = document.createElement('div');
+        modal.id = 'scribe-modal';
+        modal.className = 'scribe-modal';
+        modal.innerHTML = modalContentHTML;
 
         container.appendChild(overlay);
         container.appendChild(modal);
 
-        document.getElementById('scribe-close-btn').addEventListener('click', (e) => {
-            e.stopPropagation();
-            removeModal();
-        });
+        if (type == "session-paused") {   
+            document.getElementById('scribe-continue-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeModal();
+            })
 
-        return { profanity: isProfane };
+            document.getElementById('scribe-end-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (type == "session-paused") {
+                    removeModal();
+                    timetracked = 0;
+                    wordCount = 0;
+                    updateCounter();
+                }
+            })
+        } else {
+            document.getElementById('scribe-close-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                removeModal();
+            });
+        }
+        
+
+        return profanityCheckResult;
     };
-      
-
+    
     const updateCounter = () => {
         const counter = document.getElementById('scribe-counter');
         if (counter) counter.textContent = `${wordCount}`;
+    };
+
+    const updateTimer = () => {
+        const timer = document.getElementById('scribe-timer');
+        if (timer) {
+            const totalSeconds = Math.floor(timetracked / 1000);
+            timer.textContent = formatTime(totalSeconds);
+        }
     };
 
     const isNonSpokenLine = (line) => {
@@ -303,7 +407,12 @@
         counter.id = 'scribe-counter';
         counter.textContent = '0';
 
-        container.append(wrapper, toast, counter);
+        const timer = document.createElement('div');
+        timer.className = 'scribe-timer';
+        timer.id = 'scribe-timer';
+        timer.textContent = '00:00';
+
+        container.append(wrapper, toast, counter, timer);
     };
 
     let lastSubtitle = '';
@@ -355,7 +464,7 @@
 
             wrapper.appendChild(lineDiv);
         });
-    };
+    };;
 
     const main = () => {
         if (!isWatchPage()) {
@@ -363,9 +472,20 @@
         }
 
         const findVideoElement = () => {
-            videoElement = document.querySelector('#\\38 1654823 > video');
+            videoElement = document.querySelector('[id="81654823"] > video');
             if (!videoElement) {
                 videoElement = document.querySelector('video');
+            }
+            if (videoElement) {
+                videoElement.addEventListener('play', 
+                    startTracking
+                );
+                videoElement.addEventListener('pause', 
+                    stopTracking
+                );
+                if (!videoElement.paused) {
+                    startTracking();
+                }
             }
             return videoElement;
         };
@@ -384,6 +504,7 @@
             createUIInsideContainer(container);
             updateSubtitles();
             findVideoElement();
+            updateTimer();
         }, 400);
     };
 
