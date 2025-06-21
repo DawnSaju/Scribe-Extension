@@ -1,5 +1,5 @@
 (() => {
-    const platforms = ['netflix.com', 'www.netflix.com'];
+    const platforms = ['netflix.com', 'www.netflix.com', 'youtube.com', 'www.youtube.com'];
 
     window.addEventListener('message', (event) => {
     if (event.data?.source !== 'web-app') return;
@@ -31,8 +31,12 @@
         return; 
     }
 
-    function isWatchPage() {
+    function isNetflix() {
         return /^https?:\/\/(www\.)?netflix\.com\/watch\/\d+/.test(window.location.href);
+    }
+
+    function isYoutube(){
+        return /^https?:\/\/(www\.)?youtube\.com\/watch\?v=/.test(window.location.href);
     }
 
     const savedWords = new Set();
@@ -76,7 +80,7 @@
             timeinterval = null;
         }
 
-        const currentShowData = getShowData();
+        const currentShowData = getVideoinfo();
 
         if (!pauseTimeoutId) {
             pauseTimeoutId = setTimeout(() => timeoutTime(currentShowData), 20000);
@@ -99,8 +103,12 @@
     };
 
     function hideOverlay() {
+        const source = document.querySelector('.caption-window');
+        if (source) {
+            source.style.opacity = '1';
+        }
         removeModal();
-        const elements = ['scribe-sub-wrapper', 'scribe-toast', 'scribe-counter'];
+        const elements = ['scribe-sub-wrapper', 'scribe-toast', 'scribe-counter', 'scribe-timer', 'session-modal', 'session-overlay'];
         elements.forEach(id => {
             const el = document.getElementById(id);
             if (el) el.remove();
@@ -151,60 +159,80 @@
 
     let wordTranslations;
     let wordDefinition;
-    let showData;
 
-    function getShowData() {
-        const container = document.querySelector('.ltr-1m81c36');
-        const h4 = document.querySelector('h4');
-        const showName = h4 ? h4.textContent.trim() : '';
-    
-        if (!container || container.offsetParent === null) {
-            return { show_name: showName, season: null, episode: null, episode_title: '' };
+    function getVideoinfo() {
+        if (isYoutube()) {
+            const videoTitleEl = document.querySelector('#movie_player .ytp-title-link');
+            const channelEl = document.querySelector('.ytp-chrome-top .ytp-title-channel-logo');
+            const thumbnailimg = document.querySelector('#watch7-content > link:nth-child(9)').href
+            // console.log(document.querySelector('#watch7-content > link:nth-child(9)'))
+            // console.log(thumbnailimg)
+            
+            return {
+                show_name: videoTitleEl ? videoTitleEl.innerText : 'YouTube Video',
+                thumbnailURL: thumbnailimg,
+                episode_title: null,
+                season: null,
+                episode: null,
+                channel: channelEl ? channelEl.ariaLabel : 'Channel'
+            };
+        } 
+        
+        if (isNetflix()) {
+            const container = document.querySelector('.ltr-1m81c36');
+            const h4 = document.querySelector('h4');
+            const showName = h4 ? h4.textContent.trim() : '';
+        
+            if (!container || container.offsetParent === null) {
+                return { show_name: showName, season: null, episode: null, episode_title: '' };
+            }
+        
+            const spans = Array.from(container.querySelectorAll('span'));
+        
+            let episodeTitle = '';
+            let season = null;
+            let episode = null;
+        
+            spans.forEach((span) => {
+                const text = span.textContent.trim();
+                let match = text.match(/S(\d+):E(\d+)/i);
+                if (match) {
+                    season = parseInt(match[1]);
+                    episode = parseInt(match[2]);
+                    return;
+                }
+                match = text.match(/E(\d+)/i);
+                if (match && !episode) {
+                    episode = parseInt(match[1]);
+                    return;
+                }
+                if (!/^[SE]?\d+/i.test(text) && text.length > episodeTitle.length) {
+                    episodeTitle = text;
+                }
+            });
+        
+            return {
+                show_name: showName,
+                season,
+                episode,
+                episode_title: episodeTitle
+            };
         }
-    
-        const spans = Array.from(container.querySelectorAll('span'));
-    
-        let episodeTitle = '';
-        let season = null;
-        let episode = null;
-    
-        spans.forEach((span) => {
-            const text = span.textContent.trim();
-            let match = text.match(/S(\d+):E(\d+)/i);
-            if (match) {
-                season = parseInt(match[1]);
-                episode = parseInt(match[2]);
-                return;
-            }
-            match = text.match(/E(\d+)/i);
-            if (match && !episode) {
-                episode = parseInt(match[1]);
-                return;
-            }
-            if (!/^[SE]?\d+/i.test(text) && text.length > episodeTitle.length) {
-                episodeTitle = text;
-            }
-        });
-    
-        showData = {
-            show_name: showName,
-            season,
-            episode,
-            episode_title: episodeTitle
-        };
-    
-        console.log("Done:", showData);
-        return showData;
+
+        return {};
     }
 
     const saveWord = async (word) => {
-        const lowerWord = word.toLowerCase();
+        const cleanedWord = word.replace(/[^a-zA-Z']/g, '');
+        if (!cleanedWord) return;
+    
+        const lowerWord = cleanedWord.toLowerCase();
             
         if (!savedWords.has(lowerWord)) {
           const verify = await showModal(word, "default");
           if (!verify?.profanity) {
-            console.log('Word sent to background.js:', word);
-            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+            console.log('Word sent to background.js:', cleanedWord);
+            const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${cleanedWord}`);
             const data = await response.json();
             const meaning = data[0]?.meanings?.[0];
             const partOfSpeech = meaning?.partOfSpeech || 'unknown';
@@ -216,8 +244,10 @@
             savedWords.add(lowerWord);
             wordCount++;
             updateCounter();
-            getShowData();
-            translate(word, "ar").then(result => {
+            
+            const metadata = getVideoinfo();
+
+            translate(cleanedWord, "ar").then(result => {
                 if (result) {
                 console.log("Translated Text:", result.translatedText);
                 wordTranslations = result.translatedText;
@@ -225,20 +255,26 @@
                 }
             });          
 
+            const platform = isNetflix() ? 'Netflix' : isYoutube() ? 'YouTube' : 'Unknown';
+
+            console.log("THUMBNAIL:", metadata.thumbnailURL);
+            console.log("PLATFORM:", platform)
+
             chrome.runtime.sendMessage({
                 type: 'SEND_DATA',
                 data: {
                     id: Math.floor(Math.random() * 1000000).toString(),
-                    word: word,
+                    word: cleanedWord,
                     part_of_speech: partOfSpeech,
                     is_new: true,
                     definition: definition,
                     phonetics: phonetics,
                     example: example,
-                    platform: 'Netflix',
-                    show_name: showData.show_name,
-                    season: 1,
-                    episode: showData.episode,
+                    platform: platform,
+                    thumbnailimg: isYoutube ? metadata.thumbnailURL : '',
+                    show_name: metadata.show_name,
+                    season: metadata.season,
+                    episode: metadata.episode,
                 }
                 }, (response) => {
                 if (chrome.runtime.lastError) {
@@ -248,7 +284,7 @@
                 }
             });
 
-            console.log('Saved:', word);
+            console.log('Saved:', cleanedWord);
           } else {
             showModal(word, "profanity");
           }
@@ -265,14 +301,21 @@
             return;
         }
 
-        const info = data || showData;
+        const info = data || getVideoinfo();
 
-        const showName = info.show_name || 'Current Show';
-        const season = info.season ? `S${info.season}` : '';
-        const episode = info.episode ? `E${info.episode}` : '';
-        const episodeInfo = (season || episode) ? `: ${season}${episode}` : '';
+        if (isNetflix()) {
+            const showName = info.show_name || 'Current Show';
+            const season = info.season ? `S${info.season}` : '';
+            const episode = info.episode ? `E${info.episode}` : '';
+            const episodeInfo = (season || episode) ? `: ${season}${episode}` : '';
 
-        showModal(`Session Paused ${showName}${episodeInfo}`, "session-paused");
+            showModal(`Session Paused ${showName}${episodeInfo}`, "session-paused");
+        }
+
+        if (isYoutube()) {
+            showModal(`Session Paused`, "session-paused")
+        }
+
         if (pauseTimeoutId) {
             clearTimeout(pauseTimeoutId);
             pauseTimeoutId = null;
@@ -361,7 +404,6 @@
                 removeModal();
             });
         }
-        
 
         return profanityCheckResult;
     };
@@ -383,7 +425,10 @@
         return /^\s*\[.*?\]\s*$/.test(line);
     };
 
-    const splitWords = (line) => {
+    const splitWords = (line, platform) => {
+        if (platform === "youtube") {
+            return line.trim().split(/\s+/).filter(Boolean);
+        }
         return line
             .trim()
             .split(/\s+/)
@@ -415,64 +460,257 @@
         container.append(wrapper, toast, counter, timer);
     };
 
-    let lastSubtitle = '';
+    let wordsList = [];
+    let lastProcessedYoutubeText = '';
+    let lastNetflixText = '';
+    const normalize = (text) => text ? text.replace(/\s+/g, ' ').trim() : '';
 
     const updateSubtitles = () => {
-        const sourceEl = document.querySelector('.player-timedtext-text-container');
         const wrapper = document.getElementById('scribe-sub-wrapper');
-        if (!sourceEl || !wrapper) return;
+        if (!wrapper) return;
 
-        const rawText = sourceEl.innerText.trim();
-        if (rawText === lastSubtitle) return;
-        lastSubtitle = rawText;
+        if (isYoutube()) {
+            const sourceEl = document.querySelector('.captions-text');
+            const rawText = sourceEl ? sourceEl.innerText.trim() : '';
+            const singleLineText = rawText ? rawText.replace(/\n/g, ' ').trim() : '';
+            const normalizedNewText = normalize(singleLineText);
+            const normalizedLastText = normalize(lastProcessedYoutubeText);
 
-        wrapper.innerHTML = '';
+            const nextSection = () => {
+                if (wordsList.length > 0) {
+                    const MAX_WORDS = 8;
+                    let wordsToDisplay;
 
-        const lines = rawText.split('\n').filter(line => !isNonSpokenLine(line));
-
-        lines.forEach(line => {
-            const lineDiv = document.createElement('div');
-            lineDiv.className = 'scribe-line';
-
-            const words = splitWords(line);
-
-            words.forEach(word => {
-                if (!word) return;
-
-                const span = document.createElement('span');
-                span.className = 'scribe-word';
-                span.textContent = word;
-
-                span.addEventListener('mouseenter', () => {
-                    if (videoElement && !videoElement.paused && !document.getElementById('scribe-modal')) {
-                        videoElement.pause();
+                    let sentenceEndIndex = -1;
+                    for (let i = 0; i < wordsList.length && i < MAX_WORDS; i++) {
+                        if (/[.?!]['"]?$/.test(wordsList[i])) {
+                            sentenceEndIndex = i;
+                            break;
+                        }
                     }
-                });
-                span.addEventListener('mouseleave', () => {
-                    if (videoElement && videoElement.paused && !document.getElementById('scribe-modal')) {
-                        videoElement.play().catch(e => console.log('Video play failed:', e));
+            
+                    if (sentenceEndIndex !== -1) {
+                        wordsToDisplay = wordsList.splice(0, sentenceEndIndex + 1);
+                    } else {
+                        wordsToDisplay = wordsList.splice(0, MAX_WORDS);
                     }
+                    
+                    wrapper.innerHTML = '';
+                    const lineDiv = document.createElement('div');
+                    lineDiv.className = 'scribe-line';
+
+                    wordsToDisplay.forEach(word => {
+                        const span = document.createElement('span');
+                        span.className = 'scribe-word';
+                        span.textContent = word;
+
+                        span.addEventListener('mouseenter', () => {
+                            if (videoElement && !videoElement.paused && !document.getElementById('scribe-modal')) {
+                                videoElement.pause();
+                            }
+                        });
+                        span.addEventListener('mouseleave', () => {
+                            if (videoElement && videoElement.paused && !document.getElementById('scribe-modal')) {
+                                videoElement.play().catch(e => console.log('Video play failed:', e));
+                            }
+                        });
+
+                        span.onclick = (e) => {
+                            e.stopPropagation();
+                            saveWord(word);
+                        };
+
+                        lineDiv.appendChild(span);
+                        lineDiv.appendChild(document.createTextNode(' '));
+                    });
+                    wrapper.appendChild(lineDiv);
+                }
+            };
+
+            if (normalizedNewText && normalizedNewText !== normalizedLastText) {
+                lastProcessedYoutubeText = singleLineText;
+                wordsList = splitWords(singleLineText, "youtube"); 
+                nextSection(); 
+            } 
+            else if (!normalizedNewText && wordsList.length > 0) {
+                nextSection(); 
+            }
+
+        } else if (isNetflix()) {
+            const sourceEl = document.querySelector('.player-timedtext-text-container');
+            const rawText = sourceEl ? sourceEl.innerText.trim() : '';
+            
+            if (!rawText || normalize(rawText) === normalize(lastNetflixText)) return;
+            lastNetflixText = rawText;
+
+            wrapper.innerHTML = '';
+            const lines = rawText.split('\n').filter(line => !isNonSpokenLine(line));
+
+            lines.forEach(line => {
+                const lineDiv = document.createElement('div');
+                lineDiv.className = 'scribe-line';
+                const words = splitWords(line, 'netflix');
+
+                words.forEach(word => {
+                    if (!word) return;
+
+                    const span = document.createElement('span');
+                    span.className = 'scribe-word';
+                    span.textContent = word;
+
+                    span.addEventListener('mouseenter', () => {
+                        if (videoElement && !videoElement.paused && !document.getElementById('scribe-modal')) {
+                            videoElement.pause();
+                        }
+                    });
+                    span.addEventListener('mouseleave', () => {
+                        if (videoElement && videoElement.paused && !document.getElementById('scribe-modal')) {
+                            videoElement.play().catch(e => console.log('Video play failed:', e));
+                        }
+                    });
+                    span.onclick = (e) => {
+                        e.stopPropagation();
+                        saveWord(word);
+                    };
+
+                    lineDiv.appendChild(span);
                 });
-
-                span.onclick = (e) => {
-                    e.stopPropagation();
-                    saveWord(word);
-                };
-
-                lineDiv.appendChild(span);
+                wrapper.appendChild(lineDiv);
             });
+        }
+    };
 
-            wrapper.appendChild(lineDiv);
-        });
-    };;
+    const positionScribeSubtitles = () => {
+        if (isYoutube()) {
+            const source = document.querySelector('.caption-window');
+            const destination = document.getElementById('scribe-sub-wrapper');
+            const player = document.getElementById('movie_player');
 
-    const main = () => {
-        if (!isWatchPage()) {
+            if (source) {
+                source.style.opacity = '0';
+                source.style.zIndex = '-1';
+            }
+
+            if (!source || !destination || !player) {
+                if (destination) destination.style.visibility = 'hidden';
+                return;
+            }
+
+            destination.style.visibility = 'visible';
+            const sourceRect = source.getBoundingClientRect();
+
+            destination.style.position = 'absolute';
+            destination.style.top =  `800px`
+            destination.style.width = `100vw`;
+            destination.style.height = `${sourceRect.height}px`;
+            destination.style.zIndex = '1';
+            destination.style.display = 'flex';
+            destination.style.flexDirection = 'column';
+            destination.style.justifyContent = 'center';
+            destination.style.alignItems = 'center';
+
+            const sourceStyle = window.getComputedStyle(source.querySelector('.ytp-caption-segment') || source);
+            destination.style.textAlign = sourceStyle.textAlign;
+            destination.style.fontSize = sourceStyle.fontSize;
+            destination.style.fontFamily = sourceStyle.fontFamily;
+        }
+    };
+
+
+    const youtube = () => {
+        console.log("Youtube triggered")
+
+        if (!isYoutube()) {
             return;
         }
 
         const findVideoElement = () => {
-            videoElement = document.querySelector('[id="81654823"] > video');
+            if (isYoutube()) {
+                function setupVideoElement() {
+                    console.log("DOM LOADED");
+                    videoElement = document.getElementsByClassName('video-stream html5-main-video')[0];
+                    if (videoElement) {
+                        if (!videoElement.paused) {
+                            console.log("Currently playing")
+                            startTracking()
+                        }
+
+                        videoElement.addEventListener('play', 
+                            startTracking
+                        );
+                        videoElement.addEventListener('pause',
+                            stopTracking
+                        );
+                    } else {
+                        console.log("video element not found yet");
+                    }
+                    updateTimer();
+                    return videoElement;
+                }
+
+                if (document.readyState === "loading") {
+                    document.addEventListener('DOMContentLoaded', setupVideoElement);
+                } else {
+                    setupVideoElement();
+                }
+            }
+        }
+
+        function isVideoFullscreen() {
+            return !!document.fullscreenElement;
+        }
+
+        const handleFullscreenChange = () => {
+            const container = document.querySelector('#movie_player .html5-video-container');
+            findVideoElement();
+            if (isVideoFullscreen()) {
+                console.log("Video is in fullscreen");
+                const subtitlesBTN = document.getElementsByClassName('ytp-subtitles-button ytp-button')[0];
+                if (subtitlesBTN && subtitlesBTN.getAttribute('aria-pressed') === 'false') {
+                    subtitlesBTN.click();
+                }
+                createUIInsideContainer(container);
+                updateSubtitles();
+                positionScribeSubtitles();
+                updateTimer();
+            } else {
+                console.log("video is not in fullscreen");
+                hideOverlay();
+            }
+        };
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+        const interval = setInterval(() => {
+            if (!isYoutube()) {
+                clearInterval(interval);
+                hideOverlay();
+                return;
+            }
+
+            const ytSubtitles = document.querySelector('.caption-window');
+            if (ytSubtitles) {
+                ytSubtitles.style.opacity = '0';
+            }
+
+            if (isVideoFullscreen()) {
+                updateSubtitles();
+                positionScribeSubtitles();
+            }
+            updateTimer();
+        }, 100);
+    }
+
+    const netflix = () => {
+        if (!isNetflix()) {
+            return;
+        }
+
+        const findVideoElement = () => {
+            if (isNetflix()) {
+                videoElement = document.querySelector('[id="81654823"] > video');
+            }
             if (!videoElement) {
                 videoElement = document.querySelector('video');
             }
@@ -491,7 +729,7 @@
         };
 
         const interval = setInterval(() => {
-            if (!isWatchPage()) {
+            if (!isNetflix()) {
                 clearInterval(interval);
                 hideOverlay();
                 return;
@@ -507,12 +745,12 @@
             updateTimer();
         }, 400);
     };
-
+    
     let prevRoute = window.location.href;
     const checkUrlChange = () => {
         if (window.location.href !== prevRoute) {
             prevRoute = window.location.href;
-            if (isWatchPage()) {
+            if (isNetflix()) {
                 main();
             } else {
                 hideOverlay();
@@ -520,8 +758,10 @@
         }
     };
 
-    if (isWatchPage()){
-        main();
+    if (isNetflix()){
+        netflix();
+    } else if (isYoutube()) {
+        youtube();
     }
     setInterval(checkUrlChange, 500);
 })();
