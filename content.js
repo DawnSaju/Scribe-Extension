@@ -1,4 +1,33 @@
 (() => {
+    let port = null;
+
+    function connectToBackground() {
+        if (port) {
+            return;
+        }
+        try {
+            port = chrome.runtime.connect({name: 'scribe-content-script'});
+            console.log("Scribe: Connecting to background script.");
+
+            port.onMessage.addListener((msg) => {
+                console.log("Scribe: Message from background:", msg);
+            });
+
+            port.onDisconnect.addListener(() => {
+                console.log("Scribe: Disconnected from background script.");
+                port = null;
+                if(chrome.runtime.lastError) {
+                    console.error("Scribe port disconnect error:", chrome.runtime.lastError.message);
+                }
+            });
+        } catch (e) {
+            console.error("Scribe: Could not connect to background script", e);
+            port = null;
+        }
+    }
+
+    connectToBackground();
+
     const platforms = ['netflix.com', 'www.netflix.com', 'youtube.com', 'www.youtube.com'];
 
     window.addEventListener('message', (event) => {
@@ -164,9 +193,12 @@
         if (isYoutube()) {
             const videoTitleEl = document.querySelector('#movie_player .ytp-title-link');
             const channelEl = document.querySelector('.ytp-chrome-top .ytp-title-channel-logo');
-            const thumbnailimg = document.querySelector('#watch7-content > link:nth-child(9)').href
+            const videoURL = window.location.href;
+            const urlParams = new URL(videoURL).searchParams;
+            const videoID = urlParams.get("v");
+            const thumbnailimg = `https://img.youtube.com/vi/${videoID}/maxresdefault.jpg`
             // console.log(document.querySelector('#watch7-content > link:nth-child(9)'))
-            // console.log(thumbnailimg)
+            console.log("GOT VIDEO ID:", videoID);
             
             return {
                 show_name: videoTitleEl ? videoTitleEl.innerText : 'YouTube Video',
@@ -260,29 +292,32 @@
             console.log("THUMBNAIL:", metadata.thumbnailURL);
             console.log("PLATFORM:", platform)
 
-            chrome.runtime.sendMessage({
-                type: 'SEND_DATA',
-                data: {
-                    id: Math.floor(Math.random() * 1000000).toString(),
-                    word: cleanedWord,
-                    part_of_speech: partOfSpeech,
-                    is_new: true,
-                    definition: definition,
-                    phonetics: phonetics,
-                    example: example,
-                    platform: platform,
-                    thumbnailimg: isYoutube ? metadata.thumbnailURL : '',
-                    show_name: metadata.show_name,
-                    season: metadata.season,
-                    episode: metadata.episode,
-                }
-                }, (response) => {
-                if (chrome.runtime.lastError) {
-                    console.error("Error sending message to background:", chrome.runtime.lastError.message);
-                } else {
-                    console.log("Background response:", response);
-                }
-            });
+            if (!port) {
+                console.log("Scribe: Port not connected, attempting to reconnect.");
+                connectToBackground();
+            }
+
+            if (port) {
+                port.postMessage({
+                    type: 'SEND_DATA',
+                    data: {
+                        id: Math.floor(Math.random() * 1000000).toString(),
+                        word: cleanedWord,
+                        part_of_speech: partOfSpeech,
+                        is_new: true,
+                        definition: definition,
+                        phonetics: phonetics,
+                        example: example,
+                        platform: platform,
+                        thumbnailimg: isYoutube ? metadata.thumbnailURL : 'no thumbail',
+                        show_name: metadata.show_name,
+                        season: metadata.season,
+                        episode: metadata.episode,
+                    }
+                });
+            } else {
+                console.error("Scribe: Could not establish connection to background script.");
+            }
 
             console.log('Saved:', cleanedWord);
           } else {
@@ -616,152 +651,135 @@
         }
     };
 
+    let scribeInterval = null;
+    let videoElementListenersAttached = false;
+    let fullscreenListenersAttached = false;
+    let currentPlatform = '';
 
-    const youtube = () => {
-        console.log("Youtube triggered")
+    function cleanup() {
+        console.log("Scribe: Cleaning up for new page.");
+        if (scribeInterval) {
+            clearInterval(scribeInterval);
+            scribeInterval = null;
+        }
+        if (videoElement) {
+            videoElement.removeEventListener('play', startTracking);
+            videoElement.removeEventListener('pause', stopTracking);
+        }
+        videoElement = null;
+        videoElementListenersAttached = false;
+        hideOverlay();
+    }
 
-        if (!isYoutube()) {
+    function initialize() {
+        console.log("Scribe: Initializing for new page.");
+        cleanup();
+
+        if (isNetflix()) {
+            currentPlatform = 'netflix';
+        } else if (isYoutube()) {
+            currentPlatform = 'youtube';
+        } else {
+            currentPlatform = '';
             return;
         }
 
-        const findVideoElement = () => {
-            if (isYoutube()) {
-                function setupVideoElement() {
-                    console.log("DOM LOADED");
-                    videoElement = document.getElementsByClassName('video-stream html5-main-video')[0];
-                    if (videoElement) {
-                        if (!videoElement.paused) {
-                            console.log("Currently playing")
-                            startTracking()
-                        }
+        console.log(`Scribe: ${currentPlatform} detected.`);
 
-                        videoElement.addEventListener('play', 
-                            startTracking
-                        );
-                        videoElement.addEventListener('pause',
-                            stopTracking
-                        );
-                    } else {
-                        console.log("video element not found yet");
-                    }
-                    updateTimer();
-                    return videoElement;
-                }
-
-                if (document.readyState === "loading") {
-                    document.addEventListener('DOMContentLoaded', setupVideoElement);
-                } else {
-                    setupVideoElement();
-                }
-            }
-        }
-
-        function isVideoFullscreen() {
-            return !!document.fullscreenElement;
-        }
-
-        const handleFullscreenChange = () => {
-            const container = document.querySelector('#movie_player .html5-video-container');
-            findVideoElement();
-            if (isVideoFullscreen()) {
-                console.log("Video is in fullscreen");
-                const subtitlesBTN = document.getElementsByClassName('ytp-subtitles-button ytp-button')[0];
-                if (subtitlesBTN && subtitlesBTN.getAttribute('aria-pressed') === 'false') {
-                    subtitlesBTN.click();
-                }
-                createUIInsideContainer(container);
-                updateSubtitles();
-                positionScribeSubtitles();
-                updateTimer();
-            } else {
-                console.log("video is not in fullscreen");
-                hideOverlay();
-            }
-        };
-
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-
-        const interval = setInterval(() => {
-            if (!isYoutube()) {
-                clearInterval(interval);
-                hideOverlay();
+        const findAndSetupVideoElement = () => {
+            if (videoElement && document.body.contains(videoElement)) {
                 return;
             }
 
-            const ytSubtitles = document.querySelector('.caption-window');
-            if (ytSubtitles) {
-                ytSubtitles.style.opacity = '0';
-            }
-
-            if (isVideoFullscreen()) {
-                updateSubtitles();
-                positionScribeSubtitles();
-            }
-            updateTimer();
-        }, 100);
-    }
-
-    const netflix = () => {
-        if (!isNetflix()) {
-            return;
-        }
-
-        const findVideoElement = () => {
-            if (isNetflix()) {
-                videoElement = document.querySelector('[id="81654823"] > video');
-            }
-            if (!videoElement) {
+            if (currentPlatform === 'netflix') {
                 videoElement = document.querySelector('video');
+            } else if (currentPlatform === 'youtube') {
+                videoElement = document.querySelector('.video-stream.html5-main-video');
             }
-            if (videoElement) {
-                videoElement.addEventListener('play', 
-                    startTracking
-                );
-                videoElement.addEventListener('pause', 
-                    stopTracking
-                );
+
+            if (videoElement && !videoElementListenersAttached) {
+                console.log("Scribe: Video element found, attaching listeners.");
+                videoElement.addEventListener('play', startTracking);
+                videoElement.addEventListener('pause', stopTracking);
+                videoElementListenersAttached = true;
                 if (!videoElement.paused) {
                     startTracking();
                 }
             }
-            return videoElement;
         };
 
-        const interval = setInterval(() => {
-            if (!isNetflix()) {
-                clearInterval(interval);
+        const youtubeFullscreenHandler = () => {
+            if (currentPlatform !== 'youtube') return;
+            
+            const container = document.querySelector('#movie_player .html5-video-container');
+            if (document.fullscreenElement) {
+                console.log("Scribe: YouTube entering fullscreen.");
+                const subtitlesBTN = document.querySelector('.ytp-subtitles-button.ytp-button');
+                if (subtitlesBTN && subtitlesBTN.getAttribute('aria-pressed') === 'false') {
+                    subtitlesBTN.click();
+                }
+                if (container) {
+                    createUIInsideContainer(container);
+                }
+            } else {
+                console.log("Scribe: YouTube exiting fullscreen.");
                 hideOverlay();
+            }
+        };
+
+        if (currentPlatform === 'youtube' && !fullscreenListenersAttached) {
+            document.addEventListener('fullscreenchange', youtubeFullscreenHandler);
+            document.addEventListener('webkitfullscreenchange', youtubeFullscreenHandler);
+            fullscreenListenersAttached = true;
+        }
+
+        scribeInterval = setInterval(() => {
+            if ((currentPlatform === 'netflix' && !isNetflix()) || (currentPlatform === 'youtube' && !isYoutube())) {
+                cleanup();
                 return;
             }
 
-            const container = document.fullscreenElement || 
-                           document.querySelector('.watch-video--player-view, .player-container, .video-container, .nf-player-container') ||
-                           document.body;
+            findAndSetupVideoElement();
 
-            createUIInsideContainer(container);
-            updateSubtitles();
-            findVideoElement();
-            updateTimer();
-        }, 400);
-    };
-    
-    let prevRoute = window.location.href;
-    const checkUrlChange = () => {
-        if (window.location.href !== prevRoute) {
-            prevRoute = window.location.href;
-            if (isNetflix()) {
-                main();
-            } else {
-                hideOverlay();
+            if (currentPlatform === 'netflix') {
+                 const container = document.fullscreenElement || 
+                               document.querySelector('.watch-video--player-view, .player-container, .video-container, .nf-player-container') ||
+                               document.body;
+                createUIInsideContainer(container);
+                updateSubtitles();
             }
-        }
-    };
 
-    if (isNetflix()){
-        netflix();
-    } else if (isYoutube()) {
-        youtube();
+            if (currentPlatform === 'youtube') {
+                const ytSubtitles = document.querySelector('.caption-window');
+                if (ytSubtitles) {
+                    ytSubtitles.style.opacity = '0';
+                }
+                if (document.fullscreenElement) {
+                    updateSubtitles();
+                    positionScribeSubtitles();
+                }
+            }
+            
+            updateTimer();
+        }, 500);
+
+        if (currentPlatform === 'youtube') {
+            setTimeout(youtubeFullscreenHandler, 500);
+        }
     }
-    setInterval(checkUrlChange, 500);
+
+    let lastUrl = location.href;
+    function checkUrlChange() {
+        const currentUrl = location.href;
+        if (currentUrl !== lastUrl) {
+            console.log("Scribe: URL changed, trying to re-rendering.");
+            lastUrl = currentUrl;
+            initialize();
+        }
+    }
+
+    const observer = new MutationObserver(checkUrlChange);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    initialize();
 })();
