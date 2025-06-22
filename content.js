@@ -34,8 +34,6 @@
     if (event.data?.source !== 'web-app') return;
     if (!event.data?.type) return;
 
-    console.log('Got response from web app:', event.data);
-
     switch (event.data.type) {
         case 'EXTENSION_PING':
         window.postMessage({
@@ -45,7 +43,6 @@
         break;
         
         case 'EXTENSION_DATA':
-        console.log('[ContentScript] Got data from web app:', event.data.data);
         break;
     }
     });
@@ -74,6 +71,7 @@
     let wasPlayingBefore = false;
     let watchStartTime = null;
     let timetracked = 0;
+    let tracked = 0;
     let timeinterval = null;
     let pauseTimeoutId = null;
 
@@ -198,7 +196,7 @@
             const videoID = urlParams.get("v");
             const thumbnailimg = `https://img.youtube.com/vi/${videoID}/maxresdefault.jpg`
             // console.log(document.querySelector('#watch7-content > link:nth-child(9)'))
-            console.log("GOT VIDEO ID:", videoID);
+            // console.log("GOT VIDEO ID:", videoID);
             
             return {
                 show_name: videoTitleEl ? videoTitleEl.innerText : 'YouTube Video',
@@ -289,8 +287,8 @@
 
             const platform = isNetflix() ? 'Netflix' : isYoutube() ? 'YouTube' : 'Unknown';
 
-            console.log("THUMBNAIL:", metadata.thumbnailURL);
-            console.log("PLATFORM:", platform)
+            // console.log("THUMBNAIL:", metadata.thumbnailURL);
+            // console.log("PLATFORM:", platform)
 
             if (!port) {
                 console.log("Scribe: Port not connected, attempting to reconnect.");
@@ -306,6 +304,7 @@
                         part_of_speech: partOfSpeech,
                         is_new: true,
                         definition: definition,
+                        timeTracked: tracked,
                         phonetics: phonetics,
                         example: example,
                         platform: platform,
@@ -318,6 +317,9 @@
             } else {
                 console.error("Scribe: Could not establish connection to background script.");
             }
+            
+            timetracked = 0;
+            updateTimer();
 
             console.log('Saved:', cleanedWord);
           } else {
@@ -367,6 +369,7 @@
 
         let modalContentHTML = '';
         let profanityCheckResult = { profanity: false };
+        let isProfane = false;
 
         if (type === "session-paused") {
             modalContentHTML = `
@@ -381,7 +384,7 @@
             const word = messageText;
             const validator = await fetch(`https://www.purgomalum.com/service/json?text=${word}`);
             profanityCheckResult = await validator.json();
-            let isProfane = profanityCheckResult.result.includes("*");
+            isProfane = profanityCheckResult.result.includes("*");
 
             if (!isProfane) {
                 modalContentHTML = `
@@ -440,7 +443,7 @@
             });
         }
 
-        return profanityCheckResult;
+        return { profanity: isProfane };
     };
     
     const updateCounter = () => {
@@ -452,7 +455,9 @@
         const timer = document.getElementById('scribe-timer');
         if (timer) {
             const totalSeconds = Math.floor(timetracked / 1000);
+            // console.log("totalSeconds:", totalSeconds)
             timer.textContent = formatTime(totalSeconds);
+            tracked = totalSeconds
         }
     };
 
